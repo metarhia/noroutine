@@ -1,0 +1,56 @@
+{
+  "name": "noroutine",
+  "version": "0.0.1",
+  "author": "Timur Shemsedinov <timur.shemsedinov@gmail.com>",
+  "license": "MIT",
+  "description": "Metarhia utilities",
+  "keywords": [
+    "node.js",
+    "routine",
+    "threads",
+    "workers",
+    "balancer",
+    "multithreading",
+    "concurrency",
+    "parallel"
+  ],
+  "main": "noroutine.js",
+  "types": "noroutine.d.ts",
+  "files": [
+    "lib/",
+    "noroutine.d.ts"
+  ],
+  "engines": {
+    "node": "^12.22 || ^14.17 || ^15.1 || 16 || 17"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/metarhia/noroutine.git"
+  },
+  "bugs": {
+    "url": "https://github.com/metarhia/noroutine/issues",
+    "email": "timur.shemsedinov@gmail.com"
+  },
+  "homepage": "https://metarhia.com",
+  "funding": {
+    "type": "patreon",
+    "url": "https://www.patreon.com/tshemsedinov"
+  },
+  "scripts": {
+    "test": "npm run lint && npm run types && metatests test/",
+    "types": "tsc -p tsconfig.json",
+    "lint": "eslint . && prettier --check \"**/*.js\" \"**/*.json\" \"**/*.md\" \"**/.*rc\" \"**/*.ts\"",
+    "fmt": "prettier --write \"**/*.js\" \"**/*.json\" \"**/*.md\" \"**/.*rc\" \"**/*.ts\""
+  },
+  "devDependencies": {
+    "@types/node": "^16.10.3",
+    "eslint": "^7.32.0",
+    "eslint-config-metarhia": "^7.0.1",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-import": "^2.24.2",
+    "eslint-plugin-prettier": "^4.0.0",
+    "metatests": "^0.7.2",
+    "prettier": "^2.4.1",
+    "typescript": "^4.4.3"
+  }
+}
