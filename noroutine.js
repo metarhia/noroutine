@@ -102,13 +102,15 @@ const init = (options) => {
   balancer.status = STATUS_INITIALIZED;
 };
 
-const finalize = () => {
+const finalize = async () => {
   balancer.status = STATUS_FINALIZATION;
   clearInterval(balancer.timer);
+  const finals = [];
   for (let i = 0; i < balancer.options.pool; i++) {
     const worker = balancer.pool[i];
-    worker.terminate();
+    finals.push(worker.terminate());
   }
+  await Promise.allSettled(finals);
   balancer.status = STATUS_FINALIZED;
 };
 
