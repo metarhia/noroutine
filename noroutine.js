@@ -45,6 +45,35 @@ const invoke = async (method, args) => {
   });
 };
 
+const workerResults = ({ id, error, result }) => {
+  const task = balancer.tasks.get(id);
+  balancer.tasks.delete(id);
+  if (error) task.reject(error);
+  else task.resolve(result);
+};
+
+const register = (worker) => {
+  balancer.pool.push(worker);
+  const elu = worker.performance.eventLoopUtilization();
+  balancer.elu.push(elu);
+  worker.on('message', workerResults);
+};
+
+const findModule = (module) => {
+  for (const file of Object.keys(require.cache)) {
+    const cached = require.cache[file];
+    if (cached.exports === module) return file;
+  }
+  throw new Error('Unknown module');
+};
+
+const wrapModule = (module) => {
+  for (const key of Object.keys(module)) {
+    if (typeof module[key] !== 'function') continue;
+    module[key] = async (...args) => invoke(key, args);
+  }
+};
+
 const init = (options) => {
   if (balancer.status !== STATUS_NOT_INITIALIZED) {
     throw new Error('Con not initialize noroutine more than once');
@@ -65,37 +94,12 @@ const init = (options) => {
   if (typeof options.module !== 'object') {
     throw new Error('Module should export an interface');
   }
-
-  for (const fileName of Object.keys(require.cache)) {
-    const mod = require.cache[fileName];
-    if (mod.exports === options.module) {
-      balancer.target = fileName;
-      break;
-    }
-  }
-
-  for (const methodName of Object.keys(options.module)) {
-    if (typeof options.module[methodName] !== 'function') continue;
-    options.module[methodName] = async (...args) => invoke(methodName, args);
-  }
-
-  const workerData = {
-    module: balancer.target,
-    timeout: options.timeout,
-  };
-
+  balancer.target = findModule(options.module);
+  wrapModule(options.module);
   balancer.options = options;
+  const workerData = { module: balancer.target, timeout: options.timeout };
   for (let i = 0; i < options.pool; i++) {
-    const worker = new Worker('./lib/worker.js', { workerData });
-    balancer.pool.push(worker);
-    const elu = worker.performance.eventLoopUtilization();
-    balancer.elu.push(elu);
-    worker.on('message', (message) => {
-      const task = balancer.tasks.get(message.id);
-      balancer.tasks.delete(message.id);
-      if (message.error) task.reject(message.error);
-      else task.resolve(message.result);
-    });
+    register(new Worker('./lib/worker.js', { workerData }));
   }
   balancer.current = balancer.pool[0];
   balancer.timer = setInterval(monitoring, options.monitoring);
