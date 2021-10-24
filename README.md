@@ -14,21 +14,24 @@ Install: `npm install noroutine`
 ```js
 const noroutine = require('noroutine');
 
+const module1 = require('./module1.js');
+
 noroutine.init({
-  module: './module1.js',
-  pool: 5,
-  wait: 2000,
-  timeout: 5000,
+  module: module1,
+  pool: 5, // number of workers in thread pool
+  wait: 2000, // maximim delay to wait for a free thread
+  timeout: 5000, // maximum timeout for executing a functions
+  monitoring: 5000, // event loop utilization monitoring interval
 });
 
 (async () => {
-  const res = await norutine.method1({ key: 'value' });
+  const res = await module1.method1('value');
   console.log({ res });
 })();
 ```
 
 ## License & Contributors
 
-Copyright (c) 2017-2021 [Metarhia contributors](https://github.com/metarhia/noroutine/graphs/contributors).
+Copyright (c) 2021 [Metarhia contributors](https://github.com/metarhia/noroutine/graphs/contributors).
 Noroutine is [MIT licensed](./LICENSE).\
 Noroutine is a part of [Metarhia](https://github.com/metarhia) technology stack.
