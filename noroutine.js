@@ -1,12 +1,14 @@
 'use strict';
 
 const { Worker } = require('worker_threads');
+const path = require('path');
 
 const STATUS_NOT_INITIALIZED = 0;
 const STATUS_INITIALIZATION = 1;
 const STATUS_INITIALIZED = 2;
 const STATUS_FINALIZATION = 3;
 const STATUS_FINALIZED = 4;
+const WORKER_PATH = path.join(__dirname, 'lib/worker.js');
 
 const balancer = {
   options: null,
@@ -99,7 +101,7 @@ const init = (options) => {
   balancer.options = options;
   const workerData = { module: balancer.target, timeout: options.timeout };
   for (let i = 0; i < options.pool; i++) {
-    register(new Worker('./lib/worker.js', { workerData }));
+    register(new Worker(WORKER_PATH, { workerData }));
   }
   balancer.current = balancer.pool[0];
   balancer.timer = setInterval(monitoring, options.monitoring);
