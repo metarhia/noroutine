@@ -8,6 +8,7 @@ const STATUS_INITIALIZATION = 1;
 const STATUS_INITIALIZED = 2;
 const STATUS_FINALIZATION = 3;
 const STATUS_FINALIZED = 4;
+
 const WORKER_PATH = path.join(__dirname, 'lib/worker.js');
 
 const balancer = {
