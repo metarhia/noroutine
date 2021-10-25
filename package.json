@@ -3,7 +3,7 @@
   "version": "0.0.2",
   "author": "Timur Shemsedinov <timur.shemsedinov@gmail.com>",
   "license": "MIT",
-  "description": "Metarhia utilities",
+  "description": "Goroutine analogue for Node.js, spreads I/O-bound routine (tasks) to utilize thread pool with `worker_threads` using balancer with event loop utilization.",
   "keywords": [
     "node.js",
     "routine",

@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Add default values for `init(options)`
+
 ## [0.0.2][] - 2021-10-25
 
 - First balancer implementation
