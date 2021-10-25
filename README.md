@@ -7,27 +7,35 @@
 [![npm downloads](https://img.shields.io/npm/dt/noroutine.svg)](https://www.npmjs.com/package/noroutine)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/metarhia/noroutine/blob/master/LICENSE)
 
+Goroutine analogue for Node.js, spreads I/O-bound routine (tasks) to utilize
+thread pool with `worker_threads` using balancer with event loop utilization
+(see `perf_hooks` API).
+
 ## Usage
 
 Install: `npm install noroutine`
 
 ```js
 const noroutine = require('noroutine');
-
 const module1 = require('./module1.js');
-
-noroutine.init({
-  module: module1,
-  pool: 5, // number of workers in thread pool
-  wait: 2000, // maximim delay to wait for a free thread
-  timeout: 5000, // maximum timeout for executing a functions
-  monitoring: 5000, // event loop utilization monitoring interval
-});
+noroutine.init({ module: module1 });
 
 (async () => {
   const res = await module1.method1('value');
   console.log({ res });
 })();
+```
+
+## Initialization options
+
+```js
+noroutine.init({
+  module: module1,
+  pool: 5, // number of workers in thread pool
+  wait: 2000, // maximum delay to wait for a free thread
+  timeout: 5000, // maximum timeout for executing a functions
+  monitoring: 5000, // event loop utilization monitoring interval
+});
 ```
 
 ## License & Contributors

@@ -11,6 +11,13 @@ const STATUS_FINALIZED = 4;
 
 const WORKER_PATH = path.join(__dirname, 'lib/worker.js');
 
+const DEFAULT_POOL_SIZE = 5;
+const DEFAULT_THREAD_WAIT = 2000;
+const DEFAULT_TIMEOUT = 5000;
+const DEFAULT_MON_INTERVAL = 5000;
+
+const OPTIONS_INT = ['pool', 'wait', 'timeout', 'monitoring'];
+
 const balancer = {
   options: null,
   pool: [],
@@ -82,30 +89,33 @@ const init = (options) => {
     throw new Error('Con not initialize noroutine more than once');
   }
   balancer.status = STATUS_INITIALIZATION;
-  if (!Number.isInteger(options.pool) || options.pool <= 0) {
-    throw new Error('Pool size should be integer greater than 0');
-  }
-  if (!Number.isInteger(options.wait)) {
-    throw new Error('Pool wait should be integer');
-  }
-  if (!Number.isInteger(options.timeout)) {
-    throw new Error('Executions timeout should be integer');
-  }
-  if (!Number.isInteger(options.monitoring) || options.monitoring < 1000) {
-    throw new Error('Monitoring interval should be integer not less than 1000');
+  balancer.options = {
+    module: options.module,
+    pool: options.pool || DEFAULT_POOL_SIZE,
+    wait: options.wait || DEFAULT_THREAD_WAIT,
+    timeout: options.timeout || DEFAULT_TIMEOUT,
+    monitoring: options.monitoring || DEFAULT_MON_INTERVAL,
+  };
+  for (const key of OPTIONS_INT) {
+    const value = balancer.options[key];
+    if (!Number.isInteger(value)) {
+      throw new Error(`Norutine.init: options.${key} should be integer`);
+    }
   }
   if (typeof options.module !== 'object') {
     throw new Error('Module should export an interface');
   }
   balancer.target = findModule(options.module);
   wrapModule(options.module);
-  balancer.options = options;
-  const workerData = { module: balancer.target, timeout: options.timeout };
-  for (let i = 0; i < options.pool; i++) {
+  const workerData = {
+    module: balancer.target,
+    timeout: balancer.options.timeout,
+  };
+  for (let i = 0; i < balancer.options.pool; i++) {
     register(new Worker(WORKER_PATH, { workerData }));
   }
   balancer.current = balancer.pool[0];
-  balancer.timer = setInterval(monitoring, options.monitoring);
+  balancer.timer = setInterval(monitoring, balancer.options.monitoring);
   balancer.status = STATUS_INITIALIZED;
 };
 
