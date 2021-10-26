@@ -2,7 +2,10 @@
 
 ## [Unreleased][unreleased]
 
+## [0.0.3][] - 2021-10-26
+
 - Add default values for `init(options)`
+- Fixed path to worker module
 
 ## [0.0.2][] - 2021-10-25
 
@@ -12,6 +15,7 @@
 
 - Initial library stub
 
-[unreleased]: https://github.com/metarhia/noroutine/compare/v0.0.2...HEAD
+[unreleased]: https://github.com/metarhia/noroutine/compare/v0.0.3...HEAD
+[0.0.3]: https://github.com/metarhia/noroutine/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/metarhia/noroutine/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/metarhia/noroutine/releases/tag/v0.0.1
