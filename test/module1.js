@@ -8,4 +8,10 @@ const method1 = async (value) => {
   return null;
 };
 
-module.exports = { method1 };
+const method2 = async (value) => {
+  await metautil.delay(5500);
+  if (value) return { key: value };
+  return null;
+};
+
+module.exports = { method1, method2 };

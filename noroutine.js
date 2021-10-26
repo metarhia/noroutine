@@ -50,13 +50,17 @@ const monitoring = () => {
 const invoke = async (method, args) => {
   const id = balancer.id++;
   return new Promise((resolve, reject) => {
-    balancer.tasks.set(id, { resolve, reject });
+    const timer = setTimeout(() => {
+      reject(new Error(`Timeout execution for method '${method}'`));
+    }, balancer.options.timeout);
+    balancer.tasks.set(id, { resolve, reject, timer });
     balancer.current.postMessage({ id, method, args });
   });
 };
 
 const workerResults = ({ id, error, result }) => {
   const task = balancer.tasks.get(id);
+  clearTimeout(task.timer);
   balancer.tasks.delete(id);
   if (error) task.reject(error);
   else task.resolve(result);
