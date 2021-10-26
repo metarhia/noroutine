@@ -30,3 +30,12 @@ metatests.test('Noroutine execute method', async (test) => {
   test.end();
   await noroutine.finalize();
 });
+
+metatests.test('Wait for timeout and reject execution', async (test) => {
+  try {
+    await module1.method2('value1');
+    test.strictSame(true, false);
+  } catch (e) {
+    test.strictSame(e instanceof Error, true);
+  }
+});

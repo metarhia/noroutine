@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Wait for timeout and reject execution
+
 ## [0.0.3][] - 2021-10-26
 
 - Add default values for `init(options)`
