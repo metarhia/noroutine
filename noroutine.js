@@ -28,6 +28,7 @@ const balancer = {
   current: null,
   id: 1,
   tasks: new Map(),
+  target: null,
 };
 
 const monitoring = () => {
