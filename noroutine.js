@@ -91,7 +91,7 @@ const wrapModule = (module) => {
 
 const init = (options) => {
   if (balancer.status !== STATUS_NOT_INITIALIZED) {
-    throw new Error('Con not initialize noroutine more than once');
+    throw new Error('Can not initialize noroutine more than once');
   }
   balancer.status = STATUS_INITIALIZATION;
   balancer.options = {
