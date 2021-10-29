@@ -1,6 +1,6 @@
 {
   "name": "noroutine",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "author": "Timur Shemsedinov <timur.shemsedinov@gmail.com>",
   "license": "MIT",
   "description": "Goroutine analogue for Node.js, spreads I/O-bound routine (tasks) to utilize thread pool with `worker_threads` using balancer with event loop utilization.",
