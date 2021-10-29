@@ -94,6 +94,9 @@ const init = (options) => {
     throw new Error('Can not initialize noroutine more than once');
   }
   balancer.status = STATUS_INITIALIZATION;
+  if (typeof options.module !== 'object') {
+    throw new Error('Module should export an interface');
+  }
   balancer.options = {
     module: options.module,
     pool: options.pool || DEFAULT_POOL_SIZE,
@@ -106,9 +109,6 @@ const init = (options) => {
     if (!Number.isInteger(value)) {
       throw new Error(`Norutine.init: options.${key} should be integer`);
     }
-  }
-  if (typeof options.module !== 'object') {
-    throw new Error('Module should export an interface');
   }
   balancer.target = findModule(options.module);
   wrapModule(options.module);
