@@ -21,14 +21,14 @@ const OPTIONS_INT = ['pool', 'wait', 'timeout', 'monitoring'];
 const balancer = {
   options: null,
   pool: [],
-  module: null,
+  modules: null,
   status: STATUS_NOT_INITIALIZED,
   timer: null,
   elu: [],
   current: null,
   id: 1,
   tasks: new Map(),
-  target: null,
+  targets: null,
 };
 
 const monitoring = () => {
@@ -94,11 +94,13 @@ const init = (options) => {
     throw new Error('Can not initialize noroutine more than once');
   }
   balancer.status = STATUS_INITIALIZATION;
-  if (typeof options.module !== 'object') {
-    throw new Error('Module should export an interface');
+  for (const module of options.modules) {
+    if (typeof module !== 'object') {
+      throw new Error('Module should export an interface');
+    }
   }
   balancer.options = {
-    module: options.module,
+    modules: options.modules,
     pool: options.pool || DEFAULT_POOL_SIZE,
     wait: options.wait || DEFAULT_THREAD_WAIT,
     timeout: options.timeout || DEFAULT_TIMEOUT,
@@ -110,10 +112,12 @@ const init = (options) => {
       throw new Error(`Norutine.init: options.${key} should be integer`);
     }
   }
-  balancer.target = findModule(options.module);
-  wrapModule(options.module);
+  balancer.targets = options.modules.map(findModule);
+  for (const module of options.modules) {
+    wrapModule(module);
+  }
   const workerData = {
-    module: balancer.target,
+    modules: balancer.targets,
     timeout: balancer.options.timeout,
   };
   for (let i = 0; i < balancer.options.pool; i++) {

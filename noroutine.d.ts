@@ -1,5 +1,5 @@
 export interface NoroutineOptions {
-  module: object;
+  modules: object[];
   pool?: number;
   wait?: number;
   timeout?: number;
