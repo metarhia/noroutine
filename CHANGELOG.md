@@ -2,7 +2,7 @@
 
 ## [Unreleased][unreleased]
 
-- Ability to initialize noroutine with modules
+- Ability to initialize noroutine with multiple modules
 
 ## [0.0.4][] - 2021-10-29
 
