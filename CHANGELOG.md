@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Ability to initialize noroutine with modules
+
 ## [0.0.4][] - 2021-10-29
 
 - Wait for timeout and reject execution
