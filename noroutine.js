@@ -112,7 +112,7 @@ const init = (options) => {
       throw new Error(`Norutine.init: options.${key} should be integer`);
     }
   }
-  balancer.targets = options.modules.map((m) => findModule(m));
+  balancer.targets = options.modules.map(findModule);
   for (const module of options.modules) {
     wrapModule(module);
   }

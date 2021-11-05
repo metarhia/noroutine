@@ -18,11 +18,13 @@ Install: `npm install noroutine`
 ```js
 const noroutine = require('noroutine');
 const module1 = require('./module1.js');
-noroutine.init({ module: module1 });
+const module2 = require('./module2.js);
+noroutine.init({ modules: [module1, module2] });
 
 (async () => {
   const res = await module1.method1('value');
-  console.log({ res });
+  const res1 = await module2.method2('value1');
+  console.log({ res, res1 });
 })();
 ```
 
@@ -30,7 +32,7 @@ noroutine.init({ module: module1 });
 
 ```js
 noroutine.init({
-  module: module1,
+  modules: [module1, module2],
   pool: 5, // number of workers in thread pool
   wait: 2000, // maximum delay to wait for a free thread
   timeout: 5000, // maximum timeout for executing a functions
