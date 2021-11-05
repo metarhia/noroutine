@@ -22,9 +22,9 @@ const module2 = require('./module2.js);
 noroutine.init({ modules: [module1, module2] });
 
 (async () => {
-  const res = await module1.method1('value');
-  const res1 = await module2.method2('value1');
-  console.log({ res, res1 });
+  const res1 = await module1.method1('value1');
+  const res2 = await module2.method2('value2');
+  console.log({ res1, res2 });
 })();
 ```
 
