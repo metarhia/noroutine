@@ -1,6 +1,6 @@
 {
   "name": "noroutine",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "author": "Timur Shemsedinov <timur.shemsedinov@gmail.com>",
   "license": "MIT",
   "description": "Goroutine analogue for Node.js, spreads I/O-bound routine (tasks) to utilize thread pool with `worker_threads` using balancer with event loop utilization.",
@@ -43,7 +43,7 @@
     "fmt": "prettier --write \"**/*.js\" \"**/*.json\" \"**/*.md\" \"**/.*rc\" \"**/*.ts\""
   },
   "devDependencies": {
-    "@types/node": "^16.11.6",
+    "@types/node": "^16.11.7",
     "eslint": "^7.32.0",
     "eslint-config-metarhia": "^7.0.1",
     "eslint-config-prettier": "^8.3.0",

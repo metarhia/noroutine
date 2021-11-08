@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+## [0.0.5][] - 2021-11-09
+
 - Ability to initialize noroutine with multiple modules
 
 ## [0.0.4][] - 2021-10-29
@@ -23,7 +25,8 @@
 
 - Initial library stub
 
-[unreleased]: https://github.com/metarhia/noroutine/compare/v0.0.4...HEAD
+[unreleased]: https://github.com/metarhia/noroutine/compare/v0.0.5...HEAD
+[0.0.5]: https://github.com/metarhia/noroutine/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/metarhia/noroutine/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/metarhia/noroutine/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/metarhia/noroutine/compare/v0.0.1...v0.0.2
