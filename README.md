@@ -42,6 +42,6 @@ noroutine.init({
 
 ## License & Contributors
 
-Copyright (c) 2021 [Metarhia contributors](https://github.com/metarhia/noroutine/graphs/contributors).
+Copyright (c) 2021-2022 [Metarhia contributors](https://github.com/metarhia/noroutine/graphs/contributors).
 Noroutine is [MIT licensed](./LICENSE).\
 Noroutine is a part of [Metarhia](https://github.com/metarhia) technology stack.
