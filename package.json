@@ -21,7 +21,7 @@
     "noroutine.d.ts"
   ],
   "engines": {
-    "node": "^12.22 || ^14.17 || ^15.1 || 16 || 17"
+    "node": "^12.22 || ^14.17 || 16 || 18"
   },
   "repository": {
     "type": "git",
