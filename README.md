@@ -18,7 +18,7 @@ Install: `npm install noroutine`
 ```js
 const noroutine = require('noroutine');
 const module1 = require('./module1.js');
-const module2 = require('./module2.js);
+const module2 = require('./module2.js');
 noroutine.init({ modules: [module1, module2] });
 
 (async () => {
