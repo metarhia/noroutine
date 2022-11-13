@@ -2,6 +2,7 @@
 
 const { Worker } = require('worker_threads');
 const path = require('path');
+const { randomInt } = require('crypto');
 
 const STATUS_NOT_INITIALIZED = 0;
 const STATUS_INITIALIZATION = 1;
@@ -15,6 +16,7 @@ const DEFAULT_POOL_SIZE = 5;
 const DEFAULT_THREAD_WAIT = 2000;
 const DEFAULT_TIMEOUT = 5000;
 const DEFAULT_MON_INTERVAL = 5000;
+const WIDENING = 20;
 
 const OPTIONS_INT = ['pool', 'wait', 'timeout', 'monitoring'];
 
@@ -24,38 +26,35 @@ const balancer = {
   modules: null,
   status: STATUS_NOT_INITIALIZED,
   timer: null,
-  elu: [],
-  current: null,
+  weightZones: [],
+  max: 1,
   id: 1,
   tasks: new Map(),
   targets: null,
 };
 
-const monitoring = () => {
-  let utilization = 1;
-  let index = 0;
+const rebalance = () => {
+  let balance = 0;
   for (let i = 0; i < balancer.options.pool; i++) {
-    const worker = balancer.pool[i];
-    const prev = balancer.elu[i];
-    const current = worker.performance.eventLoopUtilization();
-    const delta = worker.performance.eventLoopUtilization(current, prev);
-    if (delta.utilization < utilization) {
-      index = i;
-      utilization = delta.utilization;
-    }
-    balancer.elu[i] = current;
+    const current = balancer.pool[i].performance.eventLoopUtilization();
+    balance = balance + 1 - current.utilization;
+    balancer.weightZones[i] = Math.floor(balance * WIDENING);
   }
-  balancer.current = balancer.pool[index];
+  balancer.max = Math.floor(balance * WIDENING);
 };
+
+const balancedIndex = () =>
+  balancer.weightZones.findIndex((b) => b >= randomInt(balancer.max));
 
 const invoke = async (method, args) => {
   const id = balancer.id++;
+  const current = balancer.pool[balancedIndex()];
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new Error(`Timeout execution for method '${method}'`));
     }, balancer.options.timeout);
     balancer.tasks.set(id, { resolve, reject, timer });
-    balancer.current.postMessage({ id, method, args });
+    current.postMessage({ id, method, args });
   });
 };
 
@@ -69,8 +68,6 @@ const workerResults = ({ id, error, result }) => {
 
 const register = (worker) => {
   balancer.pool.push(worker);
-  const elu = worker.performance.eventLoopUtilization();
-  balancer.elu.push(elu);
   worker.on('message', workerResults);
 };
 
@@ -123,8 +120,8 @@ const init = (options) => {
   for (let i = 0; i < balancer.options.pool; i++) {
     register(new Worker(WORKER_PATH, { workerData }));
   }
-  balancer.current = balancer.pool[0];
-  balancer.timer = setInterval(monitoring, balancer.options.monitoring);
+  rebalance();
+  balancer.timer = setInterval(rebalance, balancer.options.monitoring);
   balancer.status = STATUS_INITIALIZED;
 };
 
