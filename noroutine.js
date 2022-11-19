@@ -16,18 +16,18 @@ const DEFAULT_POOL_SIZE = 5;
 const DEFAULT_THREAD_WAIT = 2000;
 const DEFAULT_TIMEOUT = 5000;
 const DEFAULT_MON_INTERVAL = 5000;
-const WIDENING = 20;
+const WIDENING = 1000;
 
 const OPTIONS_INT = ['pool', 'wait', 'timeout', 'monitoring'];
 
 const balancer = {
   options: null,
   pool: [],
+  elu: [],
   modules: null,
   status: STATUS_NOT_INITIALIZED,
   timer: null,
   weightZones: [],
-  max: 1,
   id: 1,
   tasks: new Map(),
   targets: null,
@@ -37,14 +37,26 @@ const rebalance = () => {
   let balance = 0;
   for (let i = 0; i < balancer.options.pool; i++) {
     const current = balancer.pool[i].performance.eventLoopUtilization();
-    balance = balance + 1 - current.utilization;
-    balancer.weightZones[i] = Math.floor(balance * WIDENING);
+    const delta = balancer.pool[i].performance.eventLoopUtilization(
+      current,
+      balancer.elu[i],
+    );
+    balancer.elu[i] = current;
+    balance = balance + 1.01 - delta.utilization;
+    balancer.weightZones[i] = balance;
   }
-  balancer.max = Math.floor(balance * WIDENING);
+
+  for (let i = 0; i < balancer.options.pool - 1; i++) {
+    balancer.weightZones[i] = Math.floor(
+      (balancer.weightZones[i] * WIDENING) / balance,
+    );
+  }
+
+  balancer.weightZones[balancer.options.pool - 1] = WIDENING;
 };
 
 const balancedIndex = () =>
-  balancer.weightZones.findIndex((b) => b >= randomInt(balancer.max));
+  balancer.weightZones.findIndex((b) => b >= randomInt(WIDENING));
 
 const invoke = async (method, args) => {
   const id = balancer.id++;
@@ -68,6 +80,7 @@ const workerResults = ({ id, error, result }) => {
 
 const register = (worker) => {
   balancer.pool.push(worker);
+  balancer.elu.push(worker.performance.eventLoopUtilization());
   worker.on('message', workerResults);
 };
 
@@ -119,8 +132,8 @@ const init = (options) => {
   };
   for (let i = 0; i < balancer.options.pool; i++) {
     register(new Worker(WORKER_PATH, { workerData }));
+    balancer.weightZones.push(((i + 1) * WIDENING) / balancer.options.pool);
   }
-  rebalance();
   balancer.timer = setInterval(rebalance, balancer.options.monitoring);
   balancer.status = STATUS_INITIALIZED;
 };
