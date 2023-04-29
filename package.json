@@ -16,12 +16,9 @@
   ],
   "main": "noroutine.js",
   "types": "noroutine.d.ts",
-  "files": [
-    "lib/",
-    "noroutine.d.ts"
-  ],
+  "files": ["lib/", "noroutine.d.ts"],
   "engines": {
-    "node": "^12.22 || ^14.17 || 16 || 18"
+    "node": "^12.22 || ^14.17 || 16 || 18 || 19 || 20"
   },
   "repository": {
     "type": "git",
