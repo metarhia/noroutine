@@ -36,7 +36,46 @@ noroutine.init({
   pool: 5, // number of workers in thread pool
   wait: 2000, // maximum delay to wait for a free thread
   timeout: 5000, // maximum timeout for executing a functions
-  monitoring: 5000, // event loop utilization monitoring interval
+  monitoring: 5000, // balancer monitoring interval
+  balancerFactory: customBalancerFactory, // balancer factory
+});
+```
+
+### Balancer Factory
+
+`balancerFactory` field is optional and serves as a factory for the balancer function. By default, the balancing strategy relies on event loop utilization. However, this default behavior can be extended or modified by specifying a custom balancer factory.
+
+The balancer factory is executed once during the initialization process, and it takes the worker priority pool as a parameter.
+
+The outcome of the balancer factory's execution is the balancer function itself. This function will be executed automatically at regular monitoring intervals, implementing the chosen balancing strategy as defined by the balancer factory.
+
+Example (auto scaling balancer):
+
+```js
+noroutine.init({
+  modules: [module1, module2],
+  pool: 8,
+  monitoring: 5000,
+  balancerFactory: (pool) => {
+    const defaultBalancer = noroutine.defaultBalancerFactory(pool);
+    const minCapacity = 1;
+    const maxCapacity = pool.getCapacity();
+    return () => {
+      const currentCapacity = pool.getCapacity();
+      let minPriority = Infinity;
+      let maxPriority = -Infinity;
+      defaultBalancer();
+      for (const [, priority] of pool) {
+        minPriority = Math.min(minPriority, priority);
+        maxPriority = Math.max(maxPriority, priority);
+      }
+      if (1 / minPriority > 0.9) {
+        pool.setCapacity(Math.min(maxCapacity, currentCapacity + 1));
+      } else if (1 / maxPriority < 0.1) {
+        pool.setCapacity(Math.max(minCapacity, currentCapacity - 1));
+      }
+    };
+  },
 });
 ```
 

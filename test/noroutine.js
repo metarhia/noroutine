@@ -6,12 +6,18 @@ const noroutine = require('..');
 const module1 = require('./module1.js');
 const module2 = require('./module2');
 
+let callBalancer;
+const balancerCall = new Promise((resolve) => {
+  callBalancer = resolve;
+});
+
 noroutine.init({
   modules: [module1, module2],
   pool: 5,
   wait: 2000,
   timeout: 5000,
   monitoring: 5000,
+  balancerFactory: (pool) => () => callBalancer(pool),
 });
 
 metatests.test('Noroutine execute method', async (test) => {
@@ -37,6 +43,9 @@ metatests.test('Noroutine execute method', async (test) => {
 
   const res5 = await module2.method4('value5');
   test.strictSame(res5, { key: 'value5' });
+
+  const pool = await balancerCall;
+  test.strictSame(pool.getCapacity(), 5);
 
   test.end();
   await noroutine.finalize();
