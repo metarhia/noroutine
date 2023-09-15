@@ -1,6 +1,9 @@
 'use strict';
 
 const { Worker } = require('worker_threads');
+const { PriorityPool } = require('./lib/priority-pool');
+const { Balancer } = require('./lib/balancer');
+const { WorkerMessageType, ParentMessageType } = require('./lib/message-types');
 const path = require('path');
 
 const STATUS_NOT_INITIALIZED = 0;
@@ -15,63 +18,90 @@ const DEFAULT_POOL_SIZE = 5;
 const DEFAULT_THREAD_WAIT = 2000;
 const DEFAULT_TIMEOUT = 5000;
 const DEFAULT_MON_INTERVAL = 5000;
+const DEFAULT_BALANCER_FACTORY = (pool) => {
+  const balancer = new Balancer(pool);
+  return balancer.monitoring.bind(balancer);
+};
 
 const OPTIONS_INT = ['pool', 'wait', 'timeout', 'monitoring'];
 
-const balancer = {
+const planner = {
   options: null,
-  pool: [],
+  pool: null,
   modules: null,
   status: STATUS_NOT_INITIALIZED,
   timer: null,
-  elu: [],
-  current: null,
   id: 1,
   tasks: new Map(),
   targets: null,
 };
 
-const monitoring = () => {
-  let utilization = 1;
-  let index = 0;
-  for (let i = 0; i < balancer.options.pool; i++) {
-    const worker = balancer.pool[i];
-    const prev = balancer.elu[i];
-    const current = worker.performance.eventLoopUtilization();
-    const delta = worker.performance.eventLoopUtilization(current, prev);
-    if (delta.utilization < utilization) {
-      index = i;
-      utilization = delta.utilization;
-    }
-    balancer.elu[i] = current;
-  }
-  balancer.current = balancer.pool[index];
+const captureWorker = async () => {
+  const workerPromise = planner.pool.capture();
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      workerPromise.then((worker) => planner.pool.release(worker));
+      reject(new Error('Tread wait timeout'));
+    }, planner.options.wait);
+    workerPromise.then((worker) => {
+      clearTimeout(timeout);
+      resolve(worker);
+    });
+  });
+};
+
+const stopWorker = (worker) => {
+  const id = planner.id++;
+  return new Promise((resolve) => {
+    planner.tasks.set(id, { resolve });
+    worker.postMessage({
+      type: ParentMessageType.STOP,
+      id,
+    });
+  });
+};
+
+const stopResult = ({ id, data }) => {
+  const task = planner.tasks.get(id);
+  planner.tasks.delete(id);
+  task.resolve(data);
 };
 
 const invoke = async (method, args) => {
-  const id = balancer.id++;
+  const id = planner.id++;
+  const current = await captureWorker();
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new Error(`Timeout execution for method '${method}'`));
-    }, balancer.options.timeout);
-    balancer.tasks.set(id, { resolve, reject, timer });
-    balancer.current.postMessage({ id, method, args });
+    }, planner.options.timeout);
+    planner.tasks.set(id, { resolve, reject, timer });
+    current.postMessage({ type: ParentMessageType.EXECUTE, id, method, args });
   });
 };
 
 const workerResults = ({ id, error, result }) => {
-  const task = balancer.tasks.get(id);
+  const task = planner.tasks.get(id);
   clearTimeout(task.timer);
-  balancer.tasks.delete(id);
+  planner.tasks.delete(id);
   if (error) task.reject(error);
   else task.resolve(result);
 };
 
-const register = (worker) => {
-  balancer.pool.push(worker);
-  const elu = worker.performance.eventLoopUtilization();
-  balancer.elu.push(elu);
-  worker.on('message', workerResults);
+const handleMessage = (worker, message) => {
+  switch (message.type) {
+    case WorkerMessageType.AVAILABILITY:
+      planner.pool.release(worker);
+      break;
+    case WorkerMessageType.RESULT:
+      workerResults(message);
+      planner.pool.release(worker);
+      break;
+    case WorkerMessageType.STOP:
+      stopResult(message);
+      break;
+    default:
+      throw new Error(`Unknown worker message type: ${message.type}`);
+  }
 };
 
 const findModule = (module) => {
@@ -89,55 +119,75 @@ const wrapModule = (module) => {
   }
 };
 
-const init = (options) => {
-  if (balancer.status !== STATUS_NOT_INITIALIZED) {
-    throw new Error('Can not initialize noroutine more than once');
-  }
-  balancer.status = STATUS_INITIALIZATION;
+const initPull = (workerData) =>
+  new PriorityPool({
+    factory: () => {
+      const worker = new Worker(WORKER_PATH, { workerData });
+      worker.on('message', (message) => {
+        handleMessage(worker, message);
+      });
+      return worker;
+    },
+    destructor: async (worker) => {
+      if (planner.status !== STATUS_FINALIZATION) await stopWorker(worker);
+      return worker.terminate();
+    },
+    capacity: planner.options.pool,
+  });
+
+const validateOptions = (options) => {
   for (const module of options.modules) {
     if (typeof module !== 'object') {
       throw new Error('Module should export an interface');
     }
   }
-  balancer.options = {
+  const resultOptions = {
     modules: options.modules,
     pool: options.pool || DEFAULT_POOL_SIZE,
     wait: options.wait || DEFAULT_THREAD_WAIT,
     timeout: options.timeout || DEFAULT_TIMEOUT,
     monitoring: options.monitoring || DEFAULT_MON_INTERVAL,
+    balancerFactory: options.balancerFactory || DEFAULT_BALANCER_FACTORY,
   };
   for (const key of OPTIONS_INT) {
-    const value = balancer.options[key];
+    const value = resultOptions[key];
     if (!Number.isInteger(value)) {
       throw new Error(`Norutine.init: options.${key} should be integer`);
     }
   }
-  balancer.targets = options.modules.map(findModule);
+  return resultOptions;
+};
+
+const init = (options) => {
+  if (planner.status !== STATUS_NOT_INITIALIZED) {
+    throw new Error('Can not initialize noroutine more than once');
+  }
+  planner.status = STATUS_INITIALIZATION;
+  planner.options = validateOptions(options);
+  planner.targets = options.modules.map(findModule);
   for (const module of options.modules) {
     wrapModule(module);
   }
   const workerData = {
-    modules: balancer.targets,
-    timeout: balancer.options.timeout,
+    modules: planner.targets,
+    timeout: planner.options.timeout,
   };
-  for (let i = 0; i < balancer.options.pool; i++) {
-    register(new Worker(WORKER_PATH, { workerData }));
-  }
-  balancer.current = balancer.pool[0];
-  balancer.timer = setInterval(monitoring, balancer.options.monitoring);
-  balancer.status = STATUS_INITIALIZED;
+  planner.pool = initPull(workerData);
+  const workerBalancer = planner.options.balancerFactory(planner.pool);
+  planner.timer = setInterval(workerBalancer, planner.options.monitoring);
+  planner.status = STATUS_INITIALIZED;
 };
 
 const finalize = async () => {
-  balancer.status = STATUS_FINALIZATION;
-  clearInterval(balancer.timer);
-  const finals = [];
-  for (let i = 0; i < balancer.options.pool; i++) {
-    const worker = balancer.pool[i];
-    finals.push(worker.terminate());
-  }
+  planner.status = STATUS_FINALIZATION;
+  clearInterval(planner.timer);
+  const finals = planner.pool.flash();
   await Promise.allSettled(finals);
-  balancer.status = STATUS_FINALIZED;
+  planner.status = STATUS_FINALIZED;
 };
 
-module.exports = { init, finalize };
+module.exports = {
+  init,
+  finalize,
+  defaultBalancerFactory: DEFAULT_BALANCER_FACTORY,
+};
