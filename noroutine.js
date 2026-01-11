@@ -15,6 +15,7 @@ const DEFAULT_POOL_SIZE = 5;
 const DEFAULT_THREAD_WAIT = 2000;
 const DEFAULT_TIMEOUT = 5000;
 const DEFAULT_MON_INTERVAL = 5000;
+const DEFAULT_DEBUG_VALUE = false;
 
 const OPTIONS_INT = ['pool', 'wait', 'timeout', 'monitoring'];
 
@@ -67,7 +68,8 @@ const workerResults = ({ id, error, result }) => {
   else task.resolve(result);
 };
 
-const register = (worker) => {
+const register = (workerData) => {
+  const worker = new Worker(WORKER_PATH, { workerData });
   balancer.pool.push(worker);
   const elu = worker.performance.eventLoopUtilization();
   balancer.elu.push(elu);
@@ -89,6 +91,40 @@ const wrapModule = (module) => {
   }
 };
 
+const noop = () => {};
+
+const localInvoke = async (method, args) =>
+  new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Timeout execution for method '${method.name}'`));
+    }, balancer.options.timeout);
+    method(...args)
+      .then((result) => void resolve(result))
+      .catch((error) => void reject(error))
+      .finally(() => void clearTimeout(timer));
+  });
+
+const wrapModuleLocally = (module) => {
+  for (const key of Object.keys(module)) {
+    if (typeof module[key] !== 'function') continue;
+    const method = module[key];
+    module[key] = async (...args) => localInvoke(method, args);
+  }
+};
+
+const executionModes = {
+  threaded: {
+    monitor: monitoring,
+    createWorker: register,
+    exposeModule: wrapModule,
+  },
+  local: {
+    monitor: noop,
+    createWorker: noop,
+    exposeModule: wrapModuleLocally,
+  },
+};
+
 const init = (options) => {
   if (balancer.status !== STATUS_NOT_INITIALIZED) {
     throw new Error('Can not initialize noroutine more than once');
@@ -105,6 +141,7 @@ const init = (options) => {
     wait: options.wait || DEFAULT_THREAD_WAIT,
     timeout: options.timeout || DEFAULT_TIMEOUT,
     monitoring: options.monitoring || DEFAULT_MON_INTERVAL,
+    debug: options.debug || DEFAULT_DEBUG_VALUE,
   };
   for (const key of OPTIONS_INT) {
     const value = balancer.options[key];
@@ -112,19 +149,24 @@ const init = (options) => {
       throw new Error(`Norutine.init: options.${key} should be integer`);
     }
   }
+  const mode = balancer.options.debug ? 'local' : 'threaded';
+  const executionMode = executionModes[mode];
   balancer.targets = options.modules.map(findModule);
   for (const module of options.modules) {
-    wrapModule(module);
+    executionMode.exposeModule(module);
   }
   const workerData = {
     modules: balancer.targets,
     timeout: balancer.options.timeout,
   };
   for (let i = 0; i < balancer.options.pool; i++) {
-    register(new Worker(WORKER_PATH, { workerData }));
+    executionMode.createWorker(workerData);
   }
-  balancer.current = balancer.pool[0];
-  balancer.timer = setInterval(monitoring, balancer.options.monitoring);
+  balancer.current = balancer.pool[0] ?? null;
+  balancer.timer = setInterval(
+    executionMode.monitor,
+    balancer.options.monitoring,
+  );
   balancer.status = STATUS_INITIALIZED;
 };
 
@@ -132,8 +174,7 @@ const finalize = async () => {
   balancer.status = STATUS_FINALIZATION;
   clearInterval(balancer.timer);
   const finals = [];
-  for (let i = 0; i < balancer.options.pool; i++) {
-    const worker = balancer.pool[i];
+  for (const worker of balancer.pool) {
     finals.push(worker.terminate());
   }
   await Promise.allSettled(finals);
