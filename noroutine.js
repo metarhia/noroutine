@@ -114,13 +114,11 @@ const wrapModuleLocally = (module) => {
 
 const executionModes = {
   threaded: {
-    findModule,
     monitor: monitoring,
     createWorker: register,
     exposeModule: wrapModule,
   },
   local: {
-    findModule,
     monitor: noop,
     createWorker: noop,
     exposeModule: wrapModuleLocally,
@@ -153,7 +151,7 @@ const init = (options) => {
   }
   const mode = balancer.options.debug ? 'local' : 'threaded';
   const executionMode = executionModes[mode];
-  balancer.targets = options.modules.map(executionMode.findModule);
+  balancer.targets = options.modules.map(findModule);
   for (const module of options.modules) {
     executionMode.exposeModule(module);
   }
