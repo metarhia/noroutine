@@ -150,20 +150,23 @@ const init = (options) => {
     }
   }
   const mode = balancer.options.debug ? 'local' : 'threaded';
+  const executionMode = executionModes[mode];
   balancer.targets = options.modules.map(findModule);
   for (const module of options.modules) {
-    executionModes[mode].exposeModule(module);
+    executionMode.exposeModule(module);
   }
   const workerData = {
     modules: balancer.targets,
     timeout: balancer.options.timeout,
   };
   for (let i = 0; i < balancer.options.pool; i++) {
-    executionModes[mode].createWorker(workerData);
+    executionMode.createWorker(workerData);
   }
   balancer.current = balancer.pool[0] ?? null;
-  const monitoring = executionModes[mode].monitor;
-  balancer.timer = setInterval(monitoring, balancer.options.monitoring);
+  balancer.timer = setInterval(
+    executionMode.monitor,
+    balancer.options.monitoring,
+  );
   balancer.status = STATUS_INITIALIZED;
 };
 
