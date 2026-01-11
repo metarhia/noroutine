@@ -15,7 +15,7 @@ const DEFAULT_POOL_SIZE = 5;
 const DEFAULT_THREAD_WAIT = 2000;
 const DEFAULT_TIMEOUT = 5000;
 const DEFAULT_MON_INTERVAL = 5000;
-const DEFAULT_DEBUG = false;
+const DEFAULT_DEBUG_VALUE = false;
 
 const OPTIONS_INT = ['pool', 'wait', 'timeout', 'monitoring'];
 
@@ -114,11 +114,13 @@ const wrapModuleLocally = (module) => {
 
 const executionModes = {
   threaded: {
+    findModule,
     monitor: monitoring,
     createWorker: register,
     exposeModule: wrapModule,
   },
   local: {
+    findModule,
     monitor: noop,
     createWorker: noop,
     exposeModule: wrapModuleLocally,
@@ -141,7 +143,7 @@ const init = (options) => {
     wait: options.wait || DEFAULT_THREAD_WAIT,
     timeout: options.timeout || DEFAULT_TIMEOUT,
     monitoring: options.monitoring || DEFAULT_MON_INTERVAL,
-    debug: options.debug || DEFAULT_DEBUG,
+    debug: options.debug || DEFAULT_DEBUG_VALUE,
   };
   for (const key of OPTIONS_INT) {
     const value = balancer.options[key];
@@ -151,7 +153,7 @@ const init = (options) => {
   }
   const mode = balancer.options.debug ? 'local' : 'threaded';
   const executionMode = executionModes[mode];
-  balancer.targets = options.modules.map(findModule);
+  balancer.targets = options.modules.map(executionMode.findModule);
   for (const module of options.modules) {
     executionMode.exposeModule(module);
   }
