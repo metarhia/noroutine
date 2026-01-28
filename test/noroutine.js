@@ -9,6 +9,7 @@ const module2 = require('./module2');
 noroutine.init({
   modules: [module1, module2],
   pool: 5,
+  maxCaptured: 3,
   wait: 2000,
   timeout: 5000,
   monitoring: 5000,
@@ -49,4 +50,46 @@ metatests.test('Wait for timeout and reject execution', async (test) => {
   } catch (e) {
     test.strictSame(e instanceof Error, true);
   }
+});
+
+metatests.test('Noroutine capture worker', async (test) => {
+  const {
+    modules: [module1],
+    release,
+  } = noroutine.capture(3000);
+  const res = await module1.method1('value1');
+  test.strictSame(res, { key: 'value1' });
+  release();
+  test.end();
+});
+
+metatests.test('Throw error when max captured reached', async (test) => {
+  const captures = [];
+  try {
+    for (let i = 0; i < 3; i++) {
+      captures.push(noroutine.capture(5000));
+    }
+    noroutine.capture(5000);
+    test.fail('Should throw error when exceeding maxCaptured');
+  } catch (e) {
+    test.strictSame(e.message, 'Max captured workers reached');
+  } finally {
+    captures.forEach((c) => c?.release());
+  }
+  test.end();
+});
+
+metatests.test('Noroutine capture worker timeout reach', async (test) => {
+  const {
+    modules: [module1],
+    release,
+  } = noroutine.capture(100);
+  try {
+    await module1.method2('value1');
+  } catch (e) {
+    test.strictSame(e.message, 'Captured Worker Timeout execution');
+  } finally {
+    release();
+  }
+  test.end();
 });

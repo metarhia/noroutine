@@ -1,6 +1,7 @@
 export interface NoroutineOptions {
   modules: object[];
   pool?: number;
+  maxCaptured?: number;
   wait?: number;
   timeout?: number;
   monitoring?: number;
@@ -8,3 +9,7 @@ export interface NoroutineOptions {
 
 export function init(options: NoroutineOptions): void;
 export function finalize(): Promise<void>;
+export function capture(timeout: number): {
+  modules: object[];
+  release: Function;
+};
