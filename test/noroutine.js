@@ -53,10 +53,7 @@ metatests.test('Wait for timeout and reject execution', async (test) => {
 });
 
 metatests.test('Noroutine capture worker', async (test) => {
-  const {
-    modules: [module1],
-    release,
-  } = noroutine.capture(3000);
+  const { modules: [module1], release } = noroutine.capture(3000);
   const res = await module1.method1('value1');
   test.strictSame(res, { key: 'value1' });
   release();

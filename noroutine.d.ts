@@ -9,7 +9,13 @@ export interface NoroutineOptions {
 
 export function init(options: NoroutineOptions): void;
 export function finalize(): Promise<void>;
-export function capture(timeout: number): {
+
+export interface CaptureOptions {
+  waitTimeout?: number;
+  autoReleaseTimeout?: number;
+  executionTimeout?: number;
+}
+export function capture(options?: CaptureOptions): {
   modules: object[];
   release: Function;
 };

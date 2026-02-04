@@ -2,6 +2,7 @@
 
 const { Worker } = require('worker_threads');
 const path = require('path');
+const { Pool } = require('metautil');
 
 const STATUS_NOT_INITIALIZED = 0;
 const STATUS_INITIALIZATION = 1;
@@ -21,12 +22,11 @@ const OPTIONS_INT = ['pool', 'maxCaptured', 'wait', 'timeout', 'monitoring'];
 
 const balancer = {
   options: null,
-  pool: [],
+  pool: new Pool(),
+  elu: new Map(),
   modules: null,
   status: STATUS_NOT_INITIALIZED,
-  captured: [],
   timer: null,
-  elu: [],
   current: null,
   id: 1,
   tasks: new Map(),
@@ -37,17 +37,17 @@ const monitoring = () => {
   let utilization = 1;
   let index = -1;
   for (let i = 0; i < balancer.options.pool; i++) {
-    const isCaptured = balancer.captured[i];
-    if (isCaptured) continue;
-    const worker = balancer.pool[i];
-    const prev = balancer.elu[i];
+    const worker = balancer.pool.items[i];
+    const isFree = balancer.pool.free[i];
+    if (!isFree) continue;
+    const prev = balancer.elu.get(worker);
     const current = worker.performance.eventLoopUtilization();
     const delta = worker.performance.eventLoopUtilization(current, prev);
     if (delta.utilization < utilization) {
       index = i;
       utilization = delta.utilization;
     }
-    balancer.elu[i] = current;
+    balancer.elu.set(worker, current);
   }
   if (index !== -1) {
     balancer.current = balancer.pool[index];
@@ -76,14 +76,6 @@ const workerResults = ({ id, error, result }) => {
   }
 };
 
-const register = (worker) => {
-  balancer.pool.push(worker);
-  const elu = worker.performance.eventLoopUtilization();
-  balancer.elu.push(elu);
-  balancer.captured.push(false);
-  worker.on('message', workerResults);
-};
-
 const findModule = (module) => {
   for (const file of Object.keys(require.cache)) {
     const cached = require.cache[file];
@@ -99,57 +91,57 @@ const wrapModule = (module) => {
   }
 };
 
-const capture = (timeout) => {
-  const allCapturedWorkers = balancer.captured.filter(Boolean);
-  if (allCapturedWorkers.length >= balancer.options.maxCaptured) {
-    throw new Error('Max captured workers reached');
-  }
-  let captured = null;
-  let index = 0;
-  let released = false;
-  let timer = null;
-  for (let i = 0; i < balancer.options.pool; i++) {
-    const isCaptured = balancer.captured[i];
-    if (isCaptured) continue;
-    balancer.captured[i] = true;
-    captured = balancer.pool[i];
-    index = i;
-    break;
-  }
-  if (!captured) throw new Error('No free workers');
+const capture = async (options = {}) => {
+  const {
+    waitTimeout = 30_000,
+    autoReleaseTimeout = 30_000,
+    executionTimeout = 2000
+  } = options;
+  let isReleased = false;
+  let autoReleaseTimer = null;
+  let taskTimer = null;
+
+  const worker = await Promise.race([
+    balancer.pool.capture(),
+    new Promise((_, rej) => {
+      setTimeout(() => rej(new Error('Worker timeout reached')), waitTimeout)
+    })
+  ]);
 
   const capturedInvoke = (method, args) => {
-    if (released) throw new Error('Captured Worker already released');
     const id = balancer.id++;
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
+      taskTimer = setTimeout(() => {
         reject(new Error('Captured Worker Timeout execution'));
-      }, balancer.options.timeout);
-      balancer.tasks.set(id, { resolve, reject, timer });
-      captured.postMessage({ id, method, args });
+      }, executionTimeout);
+      balancer.tasks.set(id, { resolve, reject, timer: taskTimer });
+      worker.postMessage({ id, method, args });
     });
   };
 
   const capturedModules = balancer.options.modules.map((originalModule) => {
-    const moduleCopy = {};
+    const moduleProxy = {};
     for (const key of Object.keys(originalModule)) {
       if (typeof originalModule[key] !== 'function') continue;
-      moduleCopy[key] = async (...args) => capturedInvoke(key, args);
+      moduleProxy[key] = async (...args) => capturedInvoke(key, args);
     }
-    return moduleCopy;
+    return moduleProxy;
   });
+
+  const release = () => {
+    if (isReleased) return;
+    if (autoReleaseTimer) clearTimeout(autoReleaseTimer);
+    isReleased = true;
+    balancer.pool.release(worker);
+  }
 
   const capturedResult = {
     modules: capturedModules,
-    release: () => {
-      if (released) return;
-      if (timer) clearTimeout(timer);
-      released = true;
-      balancer.captured[index] = false;
-    },
+    release,
   };
-  if (timeout !== Infinity) {
-    timer = setTimeout(() => capturedResult.release(), timeout);
+
+  if (autoReleaseTimeout !== Infinity) {
+    autoReleaseTimer = setTimeout(() => release(), autoReleaseTimeout);
   }
 
   return capturedResult;
@@ -173,6 +165,7 @@ const init = (options) => {
     timeout: options.timeout || DEFAULT_TIMEOUT,
     monitoring: options.monitoring || DEFAULT_MON_INTERVAL,
   };
+  balancer.pool.timeout = balancer.options.wait;
   for (const key of OPTIONS_INT) {
     const value = balancer.options[key];
     if (!Number.isInteger(value)) {
@@ -193,9 +186,13 @@ const init = (options) => {
     timeout: balancer.options.timeout,
   };
   for (let i = 0; i < balancer.options.pool; i++) {
-    register(new Worker(WORKER_PATH, { workerData }));
+    const worker = new Worker(WORKER_PATH, { workerData });
+    worker.on('message', workerResults);
+    balancer.pool.add(worker);
+    const elu = worker.performance.eventLoopUtilization();
+    balancer.elu.set(worker, elu);
   }
-  balancer.current = balancer.pool[0];
+  balancer.current = balancer.pool.items[0];
   balancer.timer = setInterval(monitoring, balancer.options.monitoring);
   balancer.status = STATUS_INITIALIZED;
 };
