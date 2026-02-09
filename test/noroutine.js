@@ -50,3 +50,30 @@ metatests.test('Wait for timeout and reject execution', async (test) => {
     test.strictSame(e instanceof Error, true);
   }
 });
+
+metatests.test(
+  'Reject execution when aborted via AbortController',
+  async (test) => {
+    try {
+      const controller = new AbortController();
+      const signal = controller.signal;
+      setTimeout(() => controller.abort(), 100);
+      await module1.method2('value1', { signal });
+      test.strictSame(true, false);
+    } catch (e) {
+      test.strictSame(e instanceof Error, true);
+    }
+  },
+);
+
+metatests.test(
+  'Reject execution when aborted by AbortSignal timeout',
+  async (test) => {
+    try {
+      await module1.method2('value1', { signal: AbortSignal.timeout(100) });
+      test.strictSame(true, false);
+    } catch (e) {
+      test.strictSame(e instanceof Error, true);
+    }
+  },
+);

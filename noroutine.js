@@ -31,6 +31,14 @@ const balancer = {
   targets: null,
 };
 
+const validateAbortSignal = (signal, name) => {
+  if (!(signal instanceof AbortSignal)) {
+    throw new TypeError(
+      `The "${name}" property must be an instance of AbortSignal.`,
+    );
+  }
+};
+
 const monitoring = () => {
   let utilization = 1;
   let index = 0;
@@ -49,8 +57,20 @@ const monitoring = () => {
 };
 
 const invoke = async (method, args) => {
+  let signal = null;
+  const lastArg = args[args.length - 1];
+  if (typeof lastArg === 'object' && Reflect.has(lastArg, 'signal')) {
+    const options = args.pop();
+    signal = options.signal;
+    validateAbortSignal(signal, 'options.signal');
+  }
   const id = balancer.id++;
   return new Promise((resolve, reject) => {
+    if (signal) {
+      signal.addEventListener('abort', () => {
+        reject(new Error(signal.reason));
+      });
+    }
     const timer = setTimeout(() => {
       reject(new Error(`Timeout execution for method '${method}'`));
     }, balancer.options.timeout);
