@@ -50,7 +50,7 @@ const monitoring = () => {
     balancer.elu.set(worker, current);
   }
   if (index !== -1) {
-    balancer.current = balancer.pool[index];
+    balancer.current = balancer.pool.items[index];
   }
 };
 
@@ -95,23 +95,23 @@ const capture = async (options = {}) => {
   const {
     waitTimeout = 30_000,
     autoReleaseTimeout = 30_000,
-    executionTimeout = 2000
+    executionTimeout = balancer.options.timeout,
   } = options;
   let isReleased = false;
   let autoReleaseTimer = null;
-  let taskTimer = null;
 
   const worker = await Promise.race([
     balancer.pool.capture(),
     new Promise((_, rej) => {
-      setTimeout(() => rej(new Error('Worker timeout reached')), waitTimeout)
-    })
+      setTimeout(() => rej(new Error('Worker timeout reached')), waitTimeout);
+    }),
   ]);
 
   const capturedInvoke = (method, args) => {
+    if (isReleased) throw new Error('Worker already released');
     const id = balancer.id++;
     return new Promise((resolve, reject) => {
-      taskTimer = setTimeout(() => {
+      const taskTimer = setTimeout(() => {
         reject(new Error('Captured Worker Timeout execution'));
       }, executionTimeout);
       balancer.tasks.set(id, { resolve, reject, timer: taskTimer });
@@ -133,7 +133,7 @@ const capture = async (options = {}) => {
     if (autoReleaseTimer) clearTimeout(autoReleaseTimer);
     isReleased = true;
     balancer.pool.release(worker);
-  }
+  };
 
   const capturedResult = {
     modules: capturedModules,
@@ -145,6 +145,13 @@ const capture = async (options = {}) => {
   }
 
   return capturedResult;
+};
+
+const register = (worker) => {
+  balancer.pool.add(worker);
+  const elu = worker.performance.eventLoopUtilization();
+  balancer.elu.set(worker, elu);
+  worker.on('message', workerResults);
 };
 
 const init = (options) => {
@@ -187,10 +194,7 @@ const init = (options) => {
   };
   for (let i = 0; i < balancer.options.pool; i++) {
     const worker = new Worker(WORKER_PATH, { workerData });
-    worker.on('message', workerResults);
-    balancer.pool.add(worker);
-    const elu = worker.performance.eventLoopUtilization();
-    balancer.elu.set(worker, elu);
+    register(worker);
   }
   balancer.current = balancer.pool.items[0];
   balancer.timer = setInterval(monitoring, balancer.options.monitoring);
@@ -202,7 +206,7 @@ const finalize = async () => {
   clearInterval(balancer.timer);
   const finals = [];
   for (let i = 0; i < balancer.options.pool; i++) {
-    const worker = balancer.pool[i];
+    const worker = balancer.pool.items[i];
     finals.push(worker.terminate());
   }
   await Promise.allSettled(finals);

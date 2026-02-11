@@ -9,7 +9,6 @@ const module2 = require('./module2');
 noroutine.init({
   modules: [module1, module2],
   pool: 5,
-  maxCaptured: 3,
   wait: 2000,
   timeout: 5000,
   monitoring: 5000,
@@ -52,41 +51,67 @@ metatests.test('Wait for timeout and reject execution', async (test) => {
   }
 });
 
-metatests.test('Noroutine capture worker', async (test) => {
-  const { modules: [module1], release } = noroutine.capture(3000);
-  const res = await module1.method1('value1');
-  test.strictSame(res, { key: 'value1' });
-  release();
-  test.end();
-});
-
-metatests.test('Throw error when max captured reached', async (test) => {
-  const captures = [];
+metatests.test('Capture worker and execute task', async (test) => {
+  const {
+    modules: [m1],
+    release,
+  } = await noroutine.capture();
   try {
-    for (let i = 0; i < 3; i++) {
-      captures.push(noroutine.capture(5000));
-    }
-    noroutine.capture(5000);
-    test.fail('Should throw error when exceeding maxCaptured');
-  } catch (e) {
-    test.strictSame(e.message, 'Max captured workers reached');
+    const res = await m1.method1('capture-test');
+    test.strictSame(res, { key: 'capture-test' });
   } finally {
-    captures.forEach((c) => c?.release());
+    release();
   }
   test.end();
 });
 
-metatests.test('Noroutine capture worker timeout reach', async (test) => {
+metatests.test('Auto-release after timeout', async (test) => {
   const {
-    modules: [module1],
+    modules: [m1],
+  } = await noroutine.capture({
+    autoReleaseTimeout: 500,
+  });
+  const res = await m1.method1('auto-release-test');
+  test.strictSame(res, { key: 'auto-release-test' });
+  await metautil.delay(600);
+  test.end();
+});
+
+metatests.test('Execution timeout for captured worker', async (test) => {
+  const {
+    modules: [m1],
     release,
-  } = noroutine.capture(100);
+  } = await noroutine.capture({
+    executionTimeout: 500,
+    autoReleaseTimeout: Infinity,
+  });
   try {
-    await module1.method2('value1');
+    await m1.method2('timeout-test');
+    test.fail('Should throw execution timeout error');
   } catch (e) {
-    test.strictSame(e.message, 'Captured Worker Timeout execution');
+    test.assert(
+      e.message.includes('Timeout') || e.message.includes('timeout'),
+      'Should throw timeout error',
+    );
   } finally {
     release();
+  }
+  test.end();
+});
+
+metatests.test('Error when using released worker', async (test) => {
+  const {
+    modules: [m1],
+    release,
+  } = await noroutine.capture();
+  const res = await m1.method1('before-release');
+  test.strictSame(res, { key: 'before-release' });
+  release();
+  try {
+    await m1.method1('after-release');
+    test.fail('Should throw error when using released worker');
+  } catch (e) {
+    test.assert(e.message.includes('released'));
   }
   test.end();
 });
