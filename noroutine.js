@@ -71,7 +71,7 @@ const invoke = async (method, args) => {
       onAbort = () => {
         reject(new Error(signal.reason));
       };
-      signal.addEventListener('abort', onAbort);
+      signal.addEventListener('abort', onAbort, { once: true });
     }
     const timer = setTimeout(() => {
       reject(new Error(`Timeout execution for method '${method}'`));
