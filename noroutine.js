@@ -31,6 +31,13 @@ const balancer = {
   targets: null,
 };
 
+const validateAbortSignal = (signal, name) => {
+  if (!(signal instanceof AbortSignal)) {
+    const msg = `The "${name}" property must be an instance of AbortSignal`;
+    throw new TypeError(msg);
+  }
+};
+
 const monitoring = () => {
   let utilization = 1;
   let index = 0;
@@ -49,19 +56,35 @@ const monitoring = () => {
 };
 
 const invoke = async (method, args) => {
+  let signal = null;
+  let onAbort = null;
+  const lastArg = args.at(-1);
+  if (typeof lastArg === 'object' && Reflect.has(lastArg, 'signal')) {
+    const options = args.pop();
+    signal = options.signal;
+    validateAbortSignal(signal, 'options.signal');
+  }
   const id = balancer.id++;
   return new Promise((resolve, reject) => {
+    if (signal) {
+      onAbort = () => void reject(new Error(signal.reason));
+      signal.addEventListener('abort', onAbort, { once: true });
+    }
     const timer = setTimeout(() => {
       reject(new Error(`Timeout execution for method '${method}'`));
     }, balancer.options.timeout);
-    balancer.tasks.set(id, { resolve, reject, timer });
+    const cleanup = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+    };
+    balancer.tasks.set(id, { resolve, reject, cleanup });
     balancer.current.postMessage({ id, method, args });
   });
 };
 
 const workerResults = ({ id, error, result }) => {
   const task = balancer.tasks.get(id);
-  clearTimeout(task.timer);
+  task.cleanup();
   balancer.tasks.delete(id);
   if (error) task.reject(error);
   else task.resolve(result);

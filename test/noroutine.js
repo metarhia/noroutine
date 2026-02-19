@@ -1,5 +1,6 @@
 'use strict';
 
+const { getEventListeners } = require('node:events');
 const metatests = require('metatests');
 const metautil = require('metautil');
 const noroutine = require('..');
@@ -48,5 +49,51 @@ metatests.test('Wait for timeout and reject execution', async (test) => {
     test.strictSame(true, false);
   } catch (e) {
     test.strictSame(e instanceof Error, true);
+  }
+});
+
+metatests.test(
+  'Reject execution when aborted via AbortController',
+  async (test) => {
+    try {
+      const controller = new AbortController();
+      const signal = controller.signal;
+      setTimeout(() => controller.abort(), 100);
+      await module1.method2('value1', { signal });
+      test.strictSame(true, false);
+    } catch (e) {
+      test.strictSame(e instanceof Error, true);
+    }
+  },
+);
+
+metatests.test(
+  'Reject execution when aborted by AbortSignal timeout',
+  async (test) => {
+    try {
+      await module1.method2('value1', { signal: AbortSignal.timeout(100) });
+      test.strictSame(true, false);
+    } catch (e) {
+      test.strictSame(e instanceof Error, true);
+    }
+  },
+);
+
+metatests.test('Cleanup listeners after successful execution', async (test) => {
+  const controller = new AbortController();
+  const signal = controller.signal;
+  await module1.method1('value-clean', { signal });
+  const listeners = getEventListeners(signal, 'abort');
+  test.strictSame(listeners.length, 0);
+});
+
+metatests.test('Cleanup listeners after abort', async (test) => {
+  const controller = new AbortController();
+  const signal = controller.signal;
+  try {
+    setTimeout(() => controller.abort(), 100);
+    await module1.method2('value-clean', { signal });
+  } catch {
+    test.strictSame(getEventListeners(signal, 'abort').length, 0);
   }
 });
