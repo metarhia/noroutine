@@ -33,9 +33,8 @@ const balancer = {
 
 const validateAbortSignal = (signal, name) => {
   if (!(signal instanceof AbortSignal)) {
-    throw new TypeError(
-      `The "${name}" property must be an instance of AbortSignal.`,
-    );
+    const msg = `The "${name}" property must be an instance of AbortSignal`;
+    throw new TypeError(msg);
   }
 };
 
@@ -59,7 +58,7 @@ const monitoring = () => {
 const invoke = async (method, args) => {
   let signal = null;
   let onAbort = null;
-  const lastArg = args[args.length - 1];
+  const lastArg = args.at(-1);
   if (typeof lastArg === 'object' && Reflect.has(lastArg, 'signal')) {
     const options = args.pop();
     signal = options.signal;
@@ -68,9 +67,7 @@ const invoke = async (method, args) => {
   const id = balancer.id++;
   return new Promise((resolve, reject) => {
     if (signal) {
-      onAbort = () => {
-        reject(new Error(signal.reason));
-      };
+      onAbort = () => void reject(new Error(signal.reason));
       signal.addEventListener('abort', onAbort, { once: true });
     }
     const timer = setTimeout(() => {
