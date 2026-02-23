@@ -115,3 +115,45 @@ metatests.test('Error when using released worker', async (test) => {
   }
   test.end();
 });
+
+metatests.test('Check withCapture method', async (test) => {
+  const task = async (modules) => {
+    const [module1] = modules;
+    return await module1.method1('withCapture-test');
+  };
+
+  const options = {
+    waitTimeout: 5000,
+    executionTimeout: 5000,
+    autoReleaseTimeout: 5000,
+  };
+
+  const result = await noroutine.withCapture(options, task);
+  test.strictSame(result, { key: 'withCapture-test' });
+
+  test.strictSame(
+    await noroutine.withCapture({ autoReleaseTimeout: Infinity }, task),
+    { key: 'withCapture-test' },
+  );
+});
+
+metatests.test('Check withCapture autorelease', async (test) => {
+  const task = async (modules) => {
+    const [module1] = modules;
+    await metautil.delay(1000);
+    return await module1.method1('withCapture-test');
+  };
+
+  const options = {
+    waitTimeout: 5000,
+    executionTimeout: 5000,
+    autoReleaseTimeout: 500,
+  };
+
+  try {
+    await noroutine.withCapture(options, task);
+    test.fail('Should throw error when using released worker');
+  } catch (e) {
+    test.assert(e.message.includes('released'));
+  }
+});

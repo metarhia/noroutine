@@ -3,7 +3,6 @@
 const { Worker } = require('worker_threads');
 const path = require('path');
 const { Pool } = require('metautil');
-
 const STATUS_NOT_INITIALIZED = 0;
 const STATUS_INITIALIZATION = 1;
 const STATUS_INITIALIZED = 2;
@@ -93,8 +92,8 @@ const wrapModule = (module) => {
 
 const capture = async (options = {}) => {
   const {
-    waitTimeout = 30_000,
-    autoReleaseTimeout = 30_000,
+    waitTimeout = balancer.options.wait,
+    autoReleaseTimeout = Infinity,
     executionTimeout = balancer.options.timeout,
   } = options;
   let isReleased = false;
@@ -130,7 +129,9 @@ const capture = async (options = {}) => {
 
   const release = () => {
     if (isReleased) return;
-    if (autoReleaseTimer) clearTimeout(autoReleaseTimer);
+    if (autoReleaseTimer) {
+      clearTimeout(autoReleaseTimer);
+    }
     isReleased = true;
     balancer.pool.release(worker);
   };
@@ -141,7 +142,9 @@ const capture = async (options = {}) => {
   };
 
   if (autoReleaseTimeout !== Infinity) {
-    autoReleaseTimer = setTimeout(() => release(), autoReleaseTimeout);
+    autoReleaseTimer = setTimeout(() => {
+      release();
+    }, autoReleaseTimeout);
   }
 
   return capturedResult;
@@ -213,4 +216,13 @@ const finalize = async () => {
   balancer.status = STATUS_FINALIZED;
 };
 
-module.exports = { init, finalize, capture };
+const withCapture = async (options, task) => {
+  const captured = await capture(options);
+  try {
+    return await task(captured.modules);
+  } finally {
+    captured.release();
+  }
+};
+
+module.exports = { init, finalize, capture, withCapture };

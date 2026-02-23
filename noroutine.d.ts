@@ -15,7 +15,15 @@ export interface CaptureOptions {
   autoReleaseTimeout?: number;
   executionTimeout?: number;
 }
-export function capture(options?: CaptureOptions): {
+
+export interface CapturedWorker {
   modules: object[];
-  release: Function;
-};
+  release: () => void;
+}
+
+export function capture(options?: CaptureOptions): Promise<CapturedWorker>;
+
+export function withCapture<T = any>(
+  options: CaptureOptions,
+  task: (modules: object[]) => Promise<T>,
+): Promise<T>;
