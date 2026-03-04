@@ -50,3 +50,110 @@ metatests.test('Wait for timeout and reject execution', async (test) => {
     test.strictSame(e instanceof Error, true);
   }
 });
+
+metatests.test('Capture worker and execute task', async (test) => {
+  const {
+    modules: [m1],
+    release,
+  } = await noroutine.capture();
+  try {
+    const res = await m1.method1('capture-test');
+    test.strictSame(res, { key: 'capture-test' });
+  } finally {
+    release();
+  }
+  test.end();
+});
+
+metatests.test('Auto-release after timeout', async (test) => {
+  const {
+    modules: [m1],
+  } = await noroutine.capture({
+    autoReleaseTimeout: 500,
+  });
+  const res = await m1.method1('auto-release-test');
+  test.strictSame(res, { key: 'auto-release-test' });
+  await metautil.delay(600);
+  test.end();
+});
+
+metatests.test('Execution timeout for captured worker', async (test) => {
+  const {
+    modules: [m1],
+    release,
+  } = await noroutine.capture({
+    executionTimeout: 500,
+    autoReleaseTimeout: Infinity,
+  });
+  try {
+    await m1.method2('timeout-test');
+    test.fail('Should throw execution timeout error');
+  } catch (e) {
+    test.assert(
+      e.message.includes('Timeout') || e.message.includes('timeout'),
+      'Should throw timeout error',
+    );
+  } finally {
+    release();
+  }
+  test.end();
+});
+
+metatests.test('Error when using released worker', async (test) => {
+  const {
+    modules: [m1],
+    release,
+  } = await noroutine.capture();
+  const res = await m1.method1('before-release');
+  test.strictSame(res, { key: 'before-release' });
+  release();
+  try {
+    await m1.method1('after-release');
+    test.fail('Should throw error when using released worker');
+  } catch (e) {
+    test.assert(e.message.includes('released'));
+  }
+  test.end();
+});
+
+metatests.test('Check withCapture method', async (test) => {
+  const task = async (modules) => {
+    const [module1] = modules;
+    return await module1.method1('withCapture-test');
+  };
+
+  const options = {
+    waitTimeout: 5000,
+    executionTimeout: 5000,
+    autoReleaseTimeout: 5000,
+  };
+
+  const result = await noroutine.withCapture(options, task);
+  test.strictSame(result, { key: 'withCapture-test' });
+
+  test.strictSame(
+    await noroutine.withCapture({ autoReleaseTimeout: Infinity }, task),
+    { key: 'withCapture-test' },
+  );
+});
+
+metatests.test('Check withCapture autorelease', async (test) => {
+  const task = async (modules) => {
+    const [module1] = modules;
+    await metautil.delay(1000);
+    return await module1.method1('withCapture-test');
+  };
+
+  const options = {
+    waitTimeout: 5000,
+    executionTimeout: 5000,
+    autoReleaseTimeout: 500,
+  };
+
+  try {
+    await noroutine.withCapture(options, task);
+    test.fail('Should throw error when using released worker');
+  } catch (e) {
+    test.assert(e.message.includes('released'));
+  }
+});
